@@ -6,71 +6,101 @@ interface MacroState {
   target: number;
 }
 
+// Función auxiliar para leer los objetivos calculados por el perfil de forma segura
+const getInitialTarget = (macro: 'protein' | 'carbs' | 'fats', defaultTarget: number) => {
+  const guardado = localStorage.getItem('macroTargets');
+  if (guardado) {
+    try {
+      return JSON.parse(guardado)[macro] || defaultTarget;
+    } catch (error) {
+      console.warn(`Error leyendo target inicial de ${macro}:`, error);
+      return defaultTarget;
+    }
+  }
+  return defaultTarget;
+};
+
 export default function Home() {
+  // ==========================================
+  // 1. INICIALIZACIÓN DE ESTADOS
+  // ==========================================
   const [protein, setProtein] = useState<MacroState>(() => {
     const guardado = localStorage.getItem('macrosConsumidos');
     let extra = 0;
-    if (guardado) {
-      try { 
-        extra = JSON.parse(guardado).protein || 0; 
-      } catch (error) { 
-        console.warn("Error leyendo proteína:", error);
-        extra = 0; 
-      }
+    if (guardado) { 
+      try { extra = JSON.parse(guardado).protein || 0; } catch (e) { console.warn(e); extra = 0; } 
     }
-    return { current: 50 + extra, target: 150 };
+    return { current: 50 + extra, target: getInitialTarget('protein', 150) };
   });
 
   const [carbs, setCarbs] = useState<MacroState>(() => {
     const guardado = localStorage.getItem('macrosConsumidos');
     let extra = 0;
-    if (guardado) {
-      try { 
-        extra = JSON.parse(guardado).carbs || 0; 
-      } catch (error) { 
-        console.warn("Error leyendo carbohidratos:", error);
-        extra = 0; 
-      }
+    if (guardado) { 
+      try { extra = JSON.parse(guardado).carbs || 0; } catch (e) { console.warn(e); extra = 0; } 
     }
-    return { current: 40 + extra, target: 200 };
+    return { current: 40 + extra, target: getInitialTarget('carbs', 200) };
   });
 
   const [fats, setFats] = useState<MacroState>(() => {
     const guardado = localStorage.getItem('macrosConsumidos');
     let extra = 0;
-    if (guardado) {
-      try { 
-        extra = JSON.parse(guardado).fats || 0; 
-      } catch (error) { 
-        console.warn("Error leyendo grasas:", error);
-        extra = 0; 
-      }
+    if (guardado) { 
+      try { extra = JSON.parse(guardado).fats || 0; } catch (e) { console.warn(e); extra = 0; } 
     }
-    return { current: 15 + extra, target: 65 };
+    return { current: 15 + extra, target: getInitialTarget('fats', 65) };
   });
 
-  // ESTADO BLINDADO: Calorías quemadas en el gimnasio
   const [burnedCalories, setBurnedCalories] = useState<number>(() => {
     const guardado = localStorage.getItem('caloriasQuemadas');
     return guardado ? (parseInt(guardado, 10) || 0) : 0;
   });
 
+  // ==========================================
+  // 2. SINCRONIZACIÓN REACTIVA INTER-PANTALLAS
+  // ==========================================
   useEffect(() => {
     const sincronizarDatos = () => {
-      // Sincronizar Macros
+      // 1. Obtener los objetivos del perfil (si existen)
+      let targetProtein = 150;
+      let targetCarbs = 200;
+      let targetFats = 65;
+
+      const guardadoTargets = localStorage.getItem('macroTargets');
+      if (guardadoTargets) {
+        try {
+          const targets = JSON.parse(guardadoTargets);
+          targetProtein = targets.protein || 150;
+          targetCarbs = targets.carbs || 200;
+          targetFats = targets.fats || 65;
+        } catch (e) {
+          console.warn("Error sincronizando targets:", e);
+        }
+      }
+
+      // 2. Obtener los macros consumidos del escáner
+      let extraProtein = 0;
+      let extraCarbs = 0;
+      let extraFats = 0;
+
       const guardadoMacros = localStorage.getItem('macrosConsumidos');
       if (guardadoMacros) {
         try {
           const parsed = JSON.parse(guardadoMacros);
-          setProtein({ current: 50 + (parsed.protein || 0), target: 150 });
-          setCarbs({ current: 40 + (parsed.carbs || 0), target: 200 });
-          setFats({ current: 15 + (parsed.fats || 0), target: 65 });
-        } catch (error) {
-          console.warn("Error sincronizando macros:", error);
+          extraProtein = parsed.protein || 0;
+          extraCarbs = parsed.carbs || 0;
+          extraFats = parsed.fats || 0;
+        } catch (e) {
+          console.warn("Error sincronizando consumidos:", e);
         }
       }
 
-      // Sincronizar Calorías de forma ultra-segura
+      // 3. Actualizar estados de forma unificada
+      setProtein({ current: 50 + extraProtein, target: targetProtein });
+      setCarbs({ current: 40 + extraCarbs, target: targetCarbs });
+      setFats({ current: 15 + extraFats, target: targetFats });
+
+      // 4. Sincronizar Calorías
       const guardadoCalorias = localStorage.getItem('caloriasQuemadas');
       if (guardadoCalorias) {
         setBurnedCalories(parseInt(guardadoCalorias, 10) || 0);
@@ -90,12 +120,11 @@ export default function Home() {
   const handlePanicButton = () => {
     const guardado = localStorage.getItem('macrosConsumidos');
     let extraMacros = { protein: 0, carbs: 0, fats: 0 };
-    
     if (guardado) { 
       try { 
         extraMacros = JSON.parse(guardado); 
-      } catch (error) {
-        console.warn("Error leyendo macros en botón de pánico:", error);
+      } catch (e) { 
+        console.warn("Error en botón de pánico:", e); 
       } 
     }
 
@@ -113,7 +142,11 @@ export default function Home() {
 
   const handleResetDay = () => {
     localStorage.removeItem('macrosConsumidos');
-    localStorage.removeItem('caloriasQuemadas'); 
+    localStorage.removeItem('caloriasQuemadas');
+    localStorage.removeItem('macroTargets');
+    localStorage.removeItem('userProfile');
+    
+    // Devolvemos todo al estado base de fábrica
     setProtein({ current: 50, target: 150 });
     setCarbs({ current: 40, target: 200 });
     setFats({ current: 15, target: 65 });
@@ -128,7 +161,7 @@ export default function Home() {
           <h1 className="text-2xl font-extrabold text-slate-800">
             MacroSolver <span className="text-green-500">AI</span>
           </h1>
-          <p className="text-xs text-slate-400 font-medium">Tu panel de control nutricional</p>
+          <p className="text-xs text-slate-400 font-medium">Tu panel de control nutritional</p>
         </div>
         <button 
           onClick={handleResetDay}
@@ -139,6 +172,7 @@ export default function Home() {
         </button>
       </div>
 
+      {/* Panel de Macros Dinámico */}
       <div className="bg-slate-800 text-white p-5 rounded-3xl shadow-lg">
         <h2 className="text-xs font-bold tracking-wider text-slate-400 mb-4 uppercase">
           Tus Macros (Hoy)
@@ -191,6 +225,7 @@ export default function Home() {
         </div>
       </div>
 
+      {/* BOTÓN DE PÁNICO */}
       <div className="bg-red-50 border-2 border-red-200 p-5 rounded-3xl text-center shadow-sm">
         <h3 className="text-red-800 font-bold mb-3 text-sm tracking-wide">🚨 BOTÓN DE PÁNICO</h3>
         <button 
