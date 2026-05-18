@@ -14,12 +14,22 @@ export default function Scanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [result, setResult] = useState<CalculationResponse | null>(null);
 
+  // NUEVO ESTADO: Controla lo que el usuario escribe en los inputs
+  const [targetMacros, setTargetMacros] = useState({ protein: 40, carbs: 50, fats: 15 });
+
+  // Función para actualizar los macros cuando el usuario escribe
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setTargetMacros(prev => ({ ...prev, [name]: Number(value) }));
+  };
+
   const handleScan = async () => {
     setIsScanning(true);
     setResult(null); 
 
+    // AHORA ES DINÁMICO: Leemos targetMacros del estado en lugar de números fijos
     const payload = {
-      targetMacros: { protein: 40, carbs: 50, fats: 15 },
+      targetMacros: targetMacros,
       ingredients: [
         { name: "Pollo", macros: { protein: 31, carbs: 0, fats: 3.6 } },
         { name: "Arroz", macros: { protein: 2.7, carbs: 28, fats: 0.3 } },
@@ -45,25 +55,21 @@ export default function Scanner() {
     }
   };
 
-  // Función para registrar los macros calculados en el almacenamiento local del navegador
   const handleConsumeFood = () => {
-    // Definimos los macros de la comida (coincidentes con el payload enviado)
-    const comidaActual = { protein: 40, carbs: 50, fats: 15 };
+    // AHORA ES DINÁMICO: Sumamos a la Home lo que el usuario pidió realmente
+    const comidaActual = targetMacros;
     
-    // Recuperamos el histórico del día o inicializamos a cero si es la primera comida
     const datosGuardados = localStorage.getItem('macrosConsumidos');
     const acumuladoActual = datosGuardados 
       ? JSON.parse(datosGuardados) 
       : { protein: 0, carbs: 0, fats: 0 };
     
-    // Realizamos la agregación de los nuevos macros consumidos
     const nuevoTotal = {
       protein: acumuladoActual.protein + comidaActual.protein,
       carbs: acumuladoActual.carbs + comidaActual.carbs,
       fats: acumuladoActual.fats + comidaActual.fats
     };
     
-    // Persistimos el nuevo estado en localStorage serializado en JSON
     localStorage.setItem('macrosConsumidos', JSON.stringify(nuevoTotal));
     alert("¡Comida registrada con éxito! Los macros se han sumado a tu progreso diario. 🍽️");
   };
@@ -77,14 +83,12 @@ export default function Scanner() {
           Fridge <span className="text-green-500">Vision</span> 📸
         </h1>
         <p className="text-sm text-slate-500 mt-1">
-          Apunta a tu nevera para detectar ingredientes y calcular porciones
+          Define tus objetivos y escanea para calcular porciones
         </p>
       </div>
 
       {/* Visor de la Cámara */}
-      <div className={`bg-slate-900 rounded-3xl relative overflow-hidden flex items-center justify-center shadow-inner border-4 border-slate-800 transition-all duration-500 ${result ? 'h-48 flex-none' : 'flex-1'}`}>
-        
-        {/* Esquinas de enfoque */}
+      <div className={`bg-slate-900 rounded-3xl relative overflow-hidden flex items-center justify-center shadow-inner border-4 border-slate-800 transition-all duration-500 ${result ? 'h-48 flex-none' : 'h-64'}`}>
         <div className="absolute top-6 left-6 w-8 h-8 border-t-4 border-l-4 border-green-500 rounded-tl-md"></div>
         <div className="absolute top-6 right-6 w-8 h-8 border-t-4 border-r-4 border-green-500 rounded-tr-md"></div>
         <div className="absolute bottom-6 left-6 w-8 h-8 border-b-4 border-l-4 border-green-500 rounded-bl-md"></div>
@@ -94,33 +98,75 @@ export default function Scanner() {
           <div className="absolute w-full h-1 bg-green-400 shadow-[0_0_15px_3px_rgba(74,222,128,0.5)] animate-scan"></div>
         ) : (
           <p className="text-slate-400 text-xs font-medium animate-pulse text-center p-4">
-            {result ? "✓ Escaneo completado con éxito" : "Esperando cámara o imagen de la nevera..."}
+            {result ? "✓ Escaneo completado con éxito" : "Esperando cámara..."}
           </p>
         )}
       </div>
 
-      {/* Botón de Acción principal */}
+      {/* PANEL DINÁMICO DE ENTRADA DE DATOS */}
       {!result && (
-        <div>
+        <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
+          <h3 className="font-bold text-slate-800 mb-4 text-xs uppercase tracking-wide flex items-center gap-2">
+            🎯 Define tu objetivo actual
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Proteína</label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  name="protein"
+                  value={targetMacros.protein}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-red-400 text-center"
+                />
+                <span className="absolute right-2 top-2 text-xs text-slate-400 font-bold pointer-events-none">g</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Carbos</label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  name="carbs"
+                  value={targetMacros.carbs}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 text-center"
+                />
+                <span className="absolute right-2 top-2 text-xs text-slate-400 font-bold pointer-events-none">g</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Grasas</label>
+              <div className="relative">
+                <input 
+                  type="number" 
+                  name="fats"
+                  value={targetMacros.fats}
+                  onChange={handleInputChange}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 px-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-yellow-400 text-center"
+                />
+                <span className="absolute right-2 top-2 text-xs text-slate-400 font-bold pointer-events-none">g</span>
+              </div>
+            </div>
+          </div>
+          
           <button
             onClick={handleScan}
             disabled={isScanning}
-            className={`w-full py-4 rounded-2xl font-bold text-lg text-white transition-all shadow-lg active:scale-95 ${
+            className={`w-full mt-5 py-4 rounded-2xl font-bold text-base text-white transition-all shadow-lg active:scale-95 ${
               isScanning ? 'bg-slate-600 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'
             }`}
           >
-            {isScanning ? '🔍 PROCESANDO CON IA Y MATH...' : 'ESCANEAR NEVERA'}
+            {isScanning ? '🔍 PROCESANDO...' : 'CALCULAR Y GENERAR RECETA'}
           </button>
         </div>
       )}
 
-      {/* ========================================== */}
-      {/* 4. RENDERIZADO DE RESULTADOS                */}
-      {/* ========================================== */}
+      {/* RENDERIZADO DE RESULTADOS */}
       {result && (
         <div className="space-y-6 animate-fadeIn">
           
-          {/* Bloque de Gramos Calculados Matemáticamente */}
           {result.success && result.grams && (
             <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
               <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wide text-green-600">
@@ -129,7 +175,7 @@ export default function Scanner() {
               <div className="grid grid-cols-3 gap-3">
                 {Object.entries(result.grams).map(([name, grams]) => (
                   <div key={name} className="bg-slate-50 p-3 rounded-2xl text-center border border-slate-100">
-                    <span className="block text-xs font-bold text-slate-500 uppercase">{name}</span>
+                    <span className="block text-[10px] font-bold text-slate-500 uppercase truncate">{name}</span>
                     <span className="text-lg font-extrabold text-slate-800">{grams}g</span>
                   </div>
                 ))}
@@ -137,11 +183,10 @@ export default function Scanner() {
             </div>
           )}
 
-          {/* Bloque de la Receta Redactada por Gemini */}
           {result.success && result.recipe && (
             <div className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100">
               <h3 className="font-bold text-slate-800 mb-3 text-sm uppercase tracking-wide text-blue-600">
-                👨‍🍳 Receta Generada por Gemini AI
+                👨‍🍳 Receta Generada por IA
               </h3>
               <div className="text-sm text-slate-600 leading-relaxed space-y-4 whitespace-pre-line bg-slate-50 p-4 rounded-2xl border border-slate-100 font-medium">
                 {result.recipe}
@@ -149,14 +194,12 @@ export default function Scanner() {
             </div>
           )}
 
-          {/* Gestión de Errores en UI */}
           {!result.success && (
             <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm font-semibold text-center">
               ⚠️ {result.error}
             </div>
           )}
 
-          {/* BOTONES DE CONTROL DE FLUJO */}
           <div className="space-y-3">
             {result.success && (
               <button
