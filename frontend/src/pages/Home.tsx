@@ -2,23 +2,23 @@
 import { useState } from 'react';
 
 export default function Home() {
-  // 1. EL ESTADO: La "memoria" de nuestro componente
-  const [protein, setProtein] = useState({ current: 50, target: 150 });
+  
+  const [protein] = useState({ current: 50, target: 150 });
   const [carbs, setCarbs] = useState({ current: 40, target: 200 });
   const [fats, setFats] = useState({ current: 15, target: 65 });
 
-  // 2. FUNCIÓN AUXILIAR: Calcula el % de la barra para que no se salga del 100%
+  
   const getPercentage = (current: number, target: number) => {
     return Math.min((current / target) * 100, 100); 
   };
 
-  // 3. LA LÓGICA DEL BOTÓN DE PÁNICO
+  
   const handlePanicButton = () => {
-    // Simulamos que el usuario se acaba de comer un Donut de Chocolate 🍩
+   
     setCarbs((prev) => ({ ...prev, current: prev.current + 35 }));
     setFats((prev) => ({ ...prev, current: prev.current + 18 }));
     
-    // Un pequeño aviso nativo del navegador
+    
     alert("🚨 ¡Pánico! Donut registrado. Hemos ajustado tus barras de Carbohidratos y Grasas.");
   };
 
