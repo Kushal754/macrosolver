@@ -1,62 +1,41 @@
 // src/pages/Profile.tsx
 import { useState } from 'react';
-
-
-const getInitialProfile = () => {
-  const guardado = localStorage.getItem('userProfile');
-  if (guardado) {
-    try {
-      return JSON.parse(guardado);
-    } catch (error) {
-      console.warn("Error leyendo perfil inicial:", error);
-      return null;
-    }
-  }
-  return null;
-};
+import { useMacroContext } from '../context/MacroContext';
 
 export default function Profile() {
   
-  const [weight, setWeight] = useState<number>(() => getInitialProfile()?.weight || 70);
-  const [height, setHeight] = useState<number>(() => getInitialProfile()?.height || 175);
-  const [age, setAge] = useState<number>(() => getInitialProfile()?.age || 25);
-  const [gender, setGender] = useState<'M' | 'F'>(() => getInitialProfile()?.gender || 'M');
-  const [goal, setGoal] = useState<'cut' | 'maintain' | 'bulk'>(() => getInitialProfile()?.goal || 'maintain');
+  const { userProfile, updateProfileAndTargets } = useMacroContext();
+
+  
+  const [weight, setWeight] = useState<number>(userProfile?.weight || 70);
+  const [height, setHeight] = useState<number>(userProfile?.height || 175);
+  const [age, setAge] = useState<number>(userProfile?.age || 25);
+  const [gender, setGender] = useState<'M' | 'F'>(userProfile?.gender || 'M');
+  const [goal, setGoal] = useState<'cut' | 'maintain' | 'bulk'>(userProfile?.goal || 'maintain');
   
   const [saved, setSaved] = useState(false);
 
   const calculateAndSave = () => {
-    // 1. Cálculo de Tasa Metabólica Basal (Fórmula Mifflin-St Jeor)
+    
     let bmr = (10 * weight) + (6.25 * height) - (5 * age);
     bmr = gender === 'M' ? bmr + 5 : bmr - 161;
 
-    // 2. Multiplicador de actividad (Asumimos actividad moderada 1.55 por el gym)
     let tdee = bmr * 1.55;
 
-    // 3. Ajuste por objetivo
-    if (goal === 'cut') tdee -= 500; // Déficit calórico
-    if (goal === 'bulk') tdee += 500; // Superávit calórico
+    if (goal === 'cut') tdee -= 500; 
+    if (goal === 'bulk') tdee += 500; 
 
-    // 4. Reparto de Macros Profesionales
-    // Proteína: 2.2g por kg de peso corporal
+    
     const proteinTarget = Math.round(weight * 2.2);
-    // Grasas: 25% de las calorías totales (1g de grasa = 9 kcal)
     const fatsTarget = Math.round((tdee * 0.25) / 9);
-    // Carbos: El resto de las calorías (1g de carbo = 4 kcal)
     const remainingKcal = tdee - (proteinTarget * 4) - (fatsTarget * 9);
     const carbsTarget = Math.round(remainingKcal / 4);
 
-    // 5. Guardar en disco
     const profileData = { weight, height, age, gender, goal };
     const macroTargets = { protein: proteinTarget, carbs: carbsTarget, fats: fatsTarget };
     
-    localStorage.setItem('userProfile', JSON.stringify(profileData));
     
-    // Este es el puente de oro: Guardamos los objetivos para que la Home los lea
-    localStorage.setItem('macroTargets', JSON.stringify(macroTargets)); 
-
-    // Disparamos un evento global para avisar a otras pantallas (como la Home) de que algo ha cambiado
-    window.dispatchEvent(new Event('storage'));
+    updateProfileAndTargets(profileData, macroTargets);
 
     setSaved(true);
     setTimeout(() => setSaved(false), 3000);
@@ -71,7 +50,6 @@ export default function Profile() {
 
       <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
         
-        {/* Género */}
         <div>
           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Género Biológico</label>
           <div className="flex gap-2">
@@ -80,7 +58,6 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Inputs numéricos */}
         <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Peso (kg)</label>
@@ -96,7 +73,6 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Objetivo */}
         <div>
           <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Objetivo Nutricional</label>
           <div className="flex flex-col gap-2">
@@ -106,7 +82,6 @@ export default function Profile() {
           </div>
         </div>
 
-        {/* Guardar */}
         <button 
           onClick={calculateAndSave}
           className={`w-full mt-4 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${saved ? 'bg-green-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30 active:scale-95'}`}
