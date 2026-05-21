@@ -1,5 +1,7 @@
 // src/pages/Scanner.tsx
 import { useState } from 'react';
+import { useMacroContext } from '../context/MacroContext';
+
 
 interface CalculationResponse {
   success: boolean;
@@ -17,6 +19,8 @@ export default function Scanner() {
   // NUEVO ESTADO: Controla lo que el usuario escribe en los inputs
   const [targetMacros, setTargetMacros] = useState({ protein: 40, carbs: 50, fats: 15 });
 
+  const { addConsumedMacros } = useMacroContext();
+
   // Función para actualizar los macros cuando el usuario escribe
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -27,7 +31,7 @@ export default function Scanner() {
     setIsScanning(true);
     setResult(null); 
 
-    // AHORA ES DINÁMICO: Leemos targetMacros del estado en lugar de números fijos
+    
     const payload = {
       targetMacros: targetMacros,
       ingredients: [
@@ -38,7 +42,7 @@ export default function Scanner() {
     };
 
     try {
-      const response = await fetch('http://localhost:3000/api/calculate', {
+      const response = await fetch('http://localhost:3000/api/v1/calculate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -55,23 +59,22 @@ export default function Scanner() {
     }
   };
 
-  const handleConsumeFood = () => {
-    // AHORA ES DINÁMICO: Sumamos a la Home lo que el usuario pidió realmente
-    const comidaActual = targetMacros;
-    
-    const datosGuardados = localStorage.getItem('macrosConsumidos');
-    const acumuladoActual = datosGuardados 
-      ? JSON.parse(datosGuardados) 
-      : { protein: 0, carbs: 0, fats: 0 };
-    
-    const nuevoTotal = {
-      protein: acumuladoActual.protein + comidaActual.protein,
-      carbs: acumuladoActual.carbs + comidaActual.carbs,
-      fats: acumuladoActual.fats + comidaActual.fats
-    };
-    
-    localStorage.setItem('macrosConsumidos', JSON.stringify(nuevoTotal));
-    alert("¡Comida registrada con éxito! Los macros se han sumado a tu progreso diario. 🍽️");
+const handleConsumeFood = async () => {
+    try {
+      
+      await addConsumedMacros({
+        protein: targetMacros.protein,
+        carbs: targetMacros.carbs,
+        fats: targetMacros.fats
+      });
+
+      alert("¡Comida registrada con éxito! Revisa tu pantalla de Home. 🍽️");
+      setResult(null); 
+      
+    } catch (error) {
+      console.error("Error al consumir:", error);
+      alert("⚠️ Hubo un error al guardar.");
+    }
   };
 
   return (
