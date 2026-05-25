@@ -1,121 +1,185 @@
 import { useState } from 'react';
-import { useMacroContext } from '../context/MacroContext';
+// import { useMacroContext } from '../context/MacroContext'; // <-- Descomenta esto cuando uses tu contexto real
+
+interface Exercise {
+  name: string;
+  sets: number;
+  reps: string;
+  rest: string;
+  tip: string;
+}
+
+interface DailyRoutine {
+  date: string;
+  focus: string;
+  motivation: string;
+  exercises: Exercise[];
+}
 
 export default function Gym() {
-  const { addBurnedCalories } = useMacroContext();
+  // 1. Datos del usuario (Usa tu contexto real aquí cuando lo conectes)
+  // const { progress } = useMacroContext();
   
-  const [customCalories, setCustomCalories] = useState('');
-  const [lastWorkout, setLastWorkout] = useState<string | null>(null);
+  // Mock temporal mientras terminas de conectar el contexto global
+  const progress = { consumedCarbs: 150, consumedProtein: 120, consumedCalories: 1800 }; 
 
-  // Función para registrar rutinas predefinidas
-  const handlePredefinedWorkout = (calories: number, name: string) => {
-    addBurnedCalories(calories);
-    setLastWorkout(`✅ Registrado: ${name} (-${calories} kcal)`);
-    hideMessage();
-  };
+  // 2. Inicialización Profesional (Lazy State) sin useEffect
+  const [routine, setRoutine] = useState<DailyRoutine | null>(() => {
+    const savedRoutine = localStorage.getItem('dailyRoutine');
+    if (savedRoutine) {
+      const parsedRoutine = JSON.parse(savedRoutine);
+      // Si la rutina guardada es de hoy, la cargamos al instante
+      if (parsedRoutine.date === new Date().toLocaleDateString()) {
+        return parsedRoutine;
+      } else {
+        // Si es de ayer, la limpiamos de la memoria
+        localStorage.removeItem('dailyRoutine');
+      }
+    }
+    return null;
+  });
 
-  // Función para registrar calorías manuales (ej: leídas de un reloj inteligente)
-  const handleCustomWorkout = () => {
-    const cals = Number(customCalories);
-    if (cals > 0) {
-      addBurnedCalories(cals);
-      setLastWorkout(`✅ Registrado: Entrenamiento libre (-${cals} kcal)`);
-      setCustomCalories('');
-      hideMessage();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 3. Llamada real a tu microservicio de Node.js
+  const generateAIAssistedRoutine = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const today = new Date().toLocaleDateString();
+      
+      // Asegúrate de que este puerto (3000) coincida con donde tienes levantado Node.js
+      const response = await fetch('http://localhost:3000/api/generate-routine', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          carbs: progress.consumedCarbs,
+          protein: progress.consumedProtein,
+          calories: progress.consumedCalories
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Fallo al conectar con la IA en el servidor');
+      }
+
+      const generatedRoutineData = await response.json();
+
+      // Le añadimos la fecha de hoy para el control de caducidad interno
+      const fullRoutine: DailyRoutine = {
+        date: today,
+        ...generatedRoutineData
+      };
+
+      // Guardamos en la vista y en la memoria del navegador del móvil
+      setRoutine(fullRoutine);
+      localStorage.setItem('dailyRoutine', JSON.stringify(fullRoutine));
+
+    } catch (err) {
+      console.error("Error al generar la rutina:", err);
+      setError("No se pudo conectar con el servidor. ¿Está encendido Node.js?");
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Ocultar el mensaje de éxito después de 3 segundos
-  const hideMessage = () => {
-    setTimeout(() => {
-      setLastWorkout(null);
-    }, 3000);
-  };
-
+  // 4. Renderizado de la UI
   return (
-    <div className="p-6 space-y-6 min-h-screen bg-slate-50 pb-24">
-      
+    <div className="p-6 space-y-6 min-h-screen bg-slate-50 pb-32">
       <div className="mt-4">
-        <h1 className="text-2xl font-extrabold text-slate-800">Tus Entrenamientos</h1>
-        <p className="text-sm text-slate-500 font-medium">Registra tu actividad para ajustar tus calorías</p>
+        <h1 className="text-3xl font-extrabold text-slate-800">Entrenamiento</h1>
+        <p className="text-slate-500 font-medium mt-1">Tu plan inteligente para hoy 🤖🏋️‍♂️</p>
       </div>
 
-      {/* Alerta flotante de éxito */}
-      {lastWorkout && (
-        <div className="bg-green-100 border border-green-200 text-green-700 px-4 py-3 rounded-2xl text-sm font-bold animate-fadeIn">
-          {lastWorkout}
+      {!routine && !loading && (
+        <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100 text-center space-y-6 mt-10">
+          <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto text-4xl">
+            ⚡
+          </div>
+          <div>
+            <h3 className="text-xl font-bold text-slate-800">Crea tu rutina de hoy</h3>
+            <p className="text-sm text-slate-500 mt-2 leading-relaxed">
+              La IA analizará lo que has comido hoy ({progress.consumedCalories} kcal) y tu nivel de energía para crear el entrenamiento perfecto.
+            </p>
+          </div>
+          
+          {/* Mensaje de error si Node.js está apagado */}
+          {error && (
+            <div className="bg-red-50 text-red-600 p-3 rounded-xl text-sm font-bold border border-red-100">
+              ⚠️ {error}
+            </div>
+          )}
+
+          <button 
+            onClick={generateAIAssistedRoutine}
+            className="w-full bg-slate-900 text-white font-bold py-4 rounded-2xl shadow-lg shadow-slate-900/20 active:scale-95 transition-all"
+          >
+            GENERAR CON IA
+          </button>
         </div>
       )}
 
-      {/* SECCIÓN 1: Rutinas Predefinidas */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
-          ⚡ Entrenamientos Rápidos
-        </h3>
-        
-        <div className="grid grid-cols-1 gap-3">
-          <button 
-            onClick={() => handlePredefinedWorkout(300, 'Fuerza (Pesas) - 45 min')}
-            className="flex justify-between items-center bg-slate-50 hover:bg-orange-50 border border-slate-100 p-4 rounded-2xl transition-all active:scale-95"
-          >
-            <div className="text-left">
-              <span className="block font-bold text-slate-700">🏋️ Fuerza (Pesas)</span>
-              <span className="text-xs text-slate-400 font-medium">Intensidad Alta • 45 min</span>
-            </div>
-            <span className="font-extrabold text-orange-500">-300 kcal</span>
-          </button>
-
-          <button 
-            onClick={() => handlePredefinedWorkout(400, 'Cardio (Correr) - 30 min')}
-            className="flex justify-between items-center bg-slate-50 hover:bg-orange-50 border border-slate-100 p-4 rounded-2xl transition-all active:scale-95"
-          >
-            <div className="text-left">
-              <span className="block font-bold text-slate-700">🏃 Cardio (Correr)</span>
-              <span className="text-xs text-slate-400 font-medium">Intensidad Media • 30 min</span>
-            </div>
-            <span className="font-extrabold text-orange-500">-400 kcal</span>
-          </button>
-
-          <button 
-            onClick={() => handlePredefinedWorkout(200, 'Yoga / Estiramientos - 60 min')}
-            className="flex justify-between items-center bg-slate-50 hover:bg-orange-50 border border-slate-100 p-4 rounded-2xl transition-all active:scale-95"
-          >
-            <div className="text-left">
-              <span className="block font-bold text-slate-700">🧘 Yoga / Movilidad</span>
-              <span className="text-xs text-slate-400 font-medium">Intensidad Baja • 60 min</span>
-            </div>
-            <span className="font-extrabold text-orange-500">-200 kcal</span>
-          </button>
+      {loading && (
+        <div className="flex flex-col justify-center items-center py-24 space-y-4">
+          <div className="animate-spin rounded-full h-14 w-14 border-b-4 border-slate-900"></div>
+          <p className="text-slate-500 font-medium animate-pulse text-sm">Analizando tus macros diarios...</p>
         </div>
-      </div>
+      )}
 
-      {/* SECCIÓN 2: Entrada Manual (Smartwatch) */}
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-4">
-        <h3 className="font-bold text-slate-800 text-sm uppercase tracking-wide flex items-center gap-2">
-          ⌚ Registro Manual (Reloj Inteligente)
-        </h3>
-        
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <input 
-              type="number" 
-              value={customCalories}
-              onChange={(e) => setCustomCalories(e.target.value)}
-              placeholder="Ej: 520"
-              className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 px-4 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-orange-400"
-            />
-            <span className="absolute right-4 top-3 text-sm text-slate-400 font-bold pointer-events-none">kcal</span>
+      {routine && !loading && (
+        <div className="space-y-6 animate-fade-in-up">
+          {/* Cabecera de la Rutina */}
+          <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-[2rem] p-6 text-white shadow-xl shadow-slate-900/20 relative overflow-hidden">
+            <div className="relative z-10 space-y-2">
+              <span className="bg-white/20 px-3 py-1 text-xs font-bold rounded-lg uppercase tracking-wider backdrop-blur-sm">
+                Objetivo de Hoy
+              </span>
+              <h2 className="text-2xl font-black">{routine.focus}</h2>
+              <p className="text-slate-300 text-sm italic border-l-2 border-green-400 pl-3 mt-4">
+                "{routine.motivation}"
+              </p>
+            </div>
           </div>
+
+          {/* Lista de Ejercicios */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-end px-1">
+              <h3 className="font-bold text-slate-800 text-lg">Ejercicios</h3>
+              <span className="text-xs font-bold text-slate-400">{routine.exercises?.length || 0} bloques</span>
+            </div>
+            
+            {routine.exercises && routine.exercises.map((ex, idx) => (
+              <div key={idx} className="bg-white p-5 rounded-3xl shadow-sm border border-slate-100 flex gap-4 items-center group active:border-blue-200 transition-all">
+                <div className="w-12 h-12 shrink-0 bg-slate-50 rounded-2xl flex items-center justify-center font-black text-slate-300 text-xl border border-slate-100">
+                  {idx + 1}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-slate-800 leading-tight">{ex.name}</h4>
+                  <div className="flex flex-wrap gap-2 mt-2 text-xs font-bold">
+                    <span className="text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">{ex.sets} Series</span>
+                    <span className="text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">{ex.reps} Reps</span>
+                    <span className="text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md flex items-center gap-1">⏱️ {ex.rest}</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2 leading-snug">
+                    💡 {ex.tip}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Botón para resetear si el usuario quiere cambiar algo */}
           <button 
-            onClick={handleCustomWorkout}
-            disabled={!customCalories}
-            className="bg-slate-800 hover:bg-slate-900 disabled:bg-slate-300 text-white font-bold px-6 rounded-2xl transition-all active:scale-95"
+            onClick={() => { localStorage.removeItem('dailyRoutine'); setRoutine(null); }}
+            className="w-full py-4 text-sm font-bold text-slate-400 active:text-slate-600 transition-colors"
           >
-            AÑADIR
+            Descartar y generar otra vez
           </button>
         </div>
-      </div>
-
+      )}
     </div>
   );
 }

@@ -1,131 +1,176 @@
 import { useState } from 'react';
-import { useMacroContext } from '../context/MacroContext';
+
+// Estructura de los datos del usuario
+interface UserProfile {
+  age: number;
+  weight: number; // kg
+  height: number; // cm
+  gender: 'male' | 'female';
+  activityLevel: number;
+  goal: 'cut' | 'maintain' | 'bulk';
+  targetCalories: number;
+  targetProtein: number;
+  targetCarbs: number;
+  targetFats: number;
+}
 
 export default function Profile() {
-  const { updateGoals } = useMacroContext();
-  
-  const [formData, setFormData] = useState({
-    gender: 'M',
-    age: 18,
-    weight: 70,
-    height: 175,
-    activity: 1.55, 
-    goal: 'maintain' 
+  // Inicializamos leyendo de la memoria por si ya se había guardado antes
+  const [profile, setProfile] = useState<UserProfile>(() => {
+    const saved = localStorage.getItem('userProfile');
+    return saved ? JSON.parse(saved) : {
+      age: 25,
+      weight: 70,
+      height: 175,
+      gender: 'male',
+      activityLevel: 1.55, // Actividad moderada por defecto
+      goal: 'maintain',
+      targetCalories: 0, targetProtein: 0, targetCarbs: 0, targetFats: 0
+    };
   });
 
-  const [saved, setSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState(false);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setSaved(false); 
-  };
-
-  const calculateAndSave = () => {
-    const { gender, age, weight, height, activity, goal } = formData;
+  // LA MAGIA MATEMÁTICA: Fórmula de Harris-Benedict
+  const calculateMacros = () => {
+    let bmr; 
     
-    // 1. Fórmula Mifflin-St Jeor para TMB
-    let tmb = (10 * Number(weight)) + (6.25 * Number(height)) - (5 * Number(age));
-    tmb = gender === 'M' ? tmb + 5 : tmb - 161;
+    if (profile.gender === 'male') {
+      bmr = 88.362 + (13.397 * profile.weight) + (4.799 * profile.height) - (5.677 * profile.age);
+    } else {
+      bmr = 447.593 + (9.247 * profile.weight) + (3.098 * profile.height) - (4.330 * profile.age);
+    }
 
-    // 2. Calorías de Mantenimiento (TMB x Factor de Actividad)
-    const maintenanceCalories = tmb * Number(activity);
+    // Calorías de mantenimiento (Gasto Total Diario)
+    let tdee = bmr * profile.activityLevel;
 
-    // 3. Ajuste por Objetivo
-    let targetCalories = maintenanceCalories;
-    if (goal === 'lose') targetCalories -= 500; // Déficit
-    if (goal === 'gain') targetCalories += 500; // Superávit
+    // Ajuste según el objetivo
+    if (profile.goal === 'cut') tdee -= 500; // Déficit para definir
+    if (profile.goal === 'bulk') tdee += 500; // Superávit para crecer
 
-    // 4. Reparto de Macros Estándar (Fitness)
-    // Proteína: 2.2g por kg de peso
-    const targetProtein = Math.round(Number(weight) * 2.2);
-    // Grasas: 1g por kg de peso
-    const targetFats = Math.round(Number(weight) * 1);
+    const finalCalories = Math.round(tdee);
+
+    // Reparto de Macros Profesional:
+    // Proteína: 2.2g por kilo de peso corporal
+    // Grasas: 1g por kilo de peso
+    // Carbos: El resto de calorías que sobren
+    const protein = Math.round(profile.weight * 2.2);
+    const fats = Math.round(profile.weight * 1);
+    const proteinCals = protein * 4;
+    const fatsCals = fats * 9;
+    const carbs = Math.round((finalCalories - proteinCals - fatsCals) / 4);
+
+    const updatedProfile = {
+      ...profile,
+      targetCalories: finalCalories,
+      targetProtein: protein,
+      targetFats: fats,
+      targetCarbs: carbs
+    };
+
+    // Guardamos en estado y en la memoria del navegador
+    setProfile(updatedProfile);
+    localStorage.setItem('userProfile', JSON.stringify(updatedProfile));
     
-    // Carbohidratos: El resto de las calorías
-    // (Proteína = 4kcal/g, Grasas = 9kcal/g, Carbos = 4kcal/g)
-    const caloriesFromProteinAndFats = (targetProtein * 4) + (targetFats * 9);
-    const targetCarbs = Math.round((targetCalories - caloriesFromProteinAndFats) / 4);
-
-    // 5. Inyectamos los nuevos objetivos en el Cerebro Global
-    updateGoals({
-      calories: Math.round(targetCalories),
-      protein: targetProtein,
-      carbs: targetCarbs,
-      fats: targetFats
-    });
-
-    setSaved(true);
+    // Mostramos feedback visual
+    setSavedMessage(true);
+    setTimeout(() => setSavedMessage(false), 3000);
   };
 
   return (
-    <div className="p-6 space-y-6 min-h-screen bg-slate-50 pb-24">
+    <div className="p-6 space-y-6 min-h-screen bg-slate-50 pb-32">
       <div className="mt-4">
-        <h1 className="text-2xl font-extrabold text-slate-800">Tu Perfil Físico</h1>
-        <p className="text-sm text-slate-500 font-medium">Calcula tus objetivos calóricos al milímetro</p>
+        <h1 className="text-3xl font-extrabold text-slate-800">Tu Perfil</h1>
+        <p className="text-slate-500 font-medium mt-1">Personaliza tu nutrición 🧬</p>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
+      <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 space-y-5">
         
-        {/* Género y Edad */}
+        {/* Fila Edad y Género */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Género</label>
-            <select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
-              <option value="M">Hombre</option>
-              <option value="F">Mujer</option>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Edad</label>
+            <input type="number" value={profile.age} onChange={e => setProfile({...profile, age: Number(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"/>
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Género</label>
+            <select value={profile.gender} onChange={e => setProfile({...profile, gender: e.target.value as 'male'|'female'})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all">
+              <option value="male">Hombre</option>
+              <option value="female">Mujer</option>
             </select>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Edad</label>
-            <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
-          </div>
         </div>
 
-        {/* Peso y Altura */}
+        {/* Fila Peso y Altura */}
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Peso (kg)</label>
-            <input type="number" name="weight" value={formData.weight} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Peso (kg)</label>
+            <input type="number" value={profile.weight} onChange={e => setProfile({...profile, weight: Number(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"/>
           </div>
-          <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Altura (cm)</label>
-            <input type="number" name="height" value={formData.height} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-slate-400 uppercase">Altura (cm)</label>
+            <input type="number" value={profile.height} onChange={e => setProfile({...profile, height: Number(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all"/>
           </div>
         </div>
 
-        {/* Nivel de Actividad */}
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Actividad Diaria</label>
-          <select name="activity" value={formData.activity} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="1.2">Sedentario (Trabajo de oficina, sin ejercicio)</option>
-            <option value="1.375">Ligero (Ejercicio suave 1-3 días/semana)</option>
-            <option value="1.55">Moderado (Ejercicio moderado 3-5 días/semana)</option>
-            <option value="1.725">Activo (Ejercicio fuerte 6-7 días/semana)</option>
+        {/* Actividad y Objetivo */}
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">Nivel de Actividad</label>
+          <select value={profile.activityLevel} onChange={e => setProfile({...profile, activityLevel: Number(e.target.value)})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all">
+            <option value={1.2}>Sedentario (Trabajo de oficina)</option>
+            <option value={1.375}>Ligero (Ejercicio 1-3 días)</option>
+            <option value={1.55}>Moderado (Ejercicio 3-5 días)</option>
+            <option value={1.725}>Intenso (Ejercicio 6-7 días)</option>
           </select>
         </div>
 
-        {/* Objetivo */}
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tu Meta</label>
-          <select name="goal" value={formData.goal} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
-            <option value="lose">Perder Grasa (Déficit Calórico)</option>
-            <option value="maintain">Mantener Peso (Normocalórica)</option>
-            <option value="gain">Ganar Masa Muscular (Superávit)</option>
+        <div className="space-y-2">
+          <label className="text-xs font-bold text-slate-400 uppercase">Tu Meta</label>
+          <select value={profile.goal} onChange={e => setProfile({...profile, goal: e.target.value as 'cut'|'maintain'|'bulk'})} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-blue-500 transition-all">
+            <option value="cut">Definir (Perder grasa)</option>
+            <option value="maintain">Mantenimiento</option>
+            <option value="bulk">Volumen (Ganar músculo)</option>
           </select>
         </div>
 
-        {/* Botón de Guardado */}
-        <button
-          onClick={calculateAndSave}
-          className={`w-full py-4 rounded-2xl font-bold text-white transition-all shadow-md mt-4 active:scale-95 ${
-            saved ? 'bg-green-500' : 'bg-slate-800 hover:bg-slate-900'
-          }`}
+        <button 
+          onClick={calculateMacros}
+          className="w-full mt-4 bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-blue-600/20 active:scale-95 transition-all"
         >
-          {saved ? '✅ OBJETIVOS ACTUALIZADOS' : 'CALCULAR Y GUARDAR PERFIL'}
+          CALCULAR Y GUARDAR
         </button>
 
+        {savedMessage && (
+          <p className="text-center text-green-500 font-bold text-sm animate-pulse">¡Perfil actualizado correctamente!</p>
+        )}
       </div>
+
+      {/* Resultados de los Macros (Si ya están calculados) */}
+      {profile.targetCalories > 0 && (
+        <div className="bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl animate-fade-in-up space-y-4">
+          <h2 className="text-lg font-bold text-center border-b border-slate-700 pb-3">Tus Macros Diarios</h2>
+          
+          <div className="flex justify-center items-end gap-2">
+            <span className="text-4xl font-black">{profile.targetCalories}</span>
+            <span className="text-slate-400 mb-1">kcal</span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <div className="bg-slate-800 rounded-xl p-3 text-center border border-slate-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Proteína</p>
+              <p className="text-blue-400 font-bold text-lg">{profile.targetProtein}g</p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-3 text-center border border-slate-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Carbos</p>
+              <p className="text-green-400 font-bold text-lg">{profile.targetCarbs}g</p>
+            </div>
+            <div className="bg-slate-800 rounded-xl p-3 text-center border border-slate-700">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Grasas</p>
+              <p className="text-orange-400 font-bold text-lg">{profile.targetFats}g</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
