@@ -1,92 +1,128 @@
-// src/pages/Profile.tsx
 import { useState } from 'react';
 import { useMacroContext } from '../context/MacroContext';
 
 export default function Profile() {
+  const { updateGoals } = useMacroContext();
   
-  const { userProfile, updateProfileAndTargets } = useMacroContext();
+  const [formData, setFormData] = useState({
+    gender: 'M',
+    age: 18,
+    weight: 70,
+    height: 175,
+    activity: 1.55, 
+    goal: 'maintain' 
+  });
 
-  
-  const [weight, setWeight] = useState<number>(userProfile?.weight || 70);
-  const [height, setHeight] = useState<number>(userProfile?.height || 175);
-  const [age, setAge] = useState<number>(userProfile?.age || 25);
-  const [gender, setGender] = useState<'M' | 'F'>(userProfile?.gender || 'M');
-  const [goal, setGoal] = useState<'cut' | 'maintain' | 'bulk'>(userProfile?.goal || 'maintain');
-  
   const [saved, setSaved] = useState(false);
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    setSaved(false); 
+  };
+
   const calculateAndSave = () => {
+    const { gender, age, weight, height, activity, goal } = formData;
     
-    let bmr = (10 * weight) + (6.25 * height) - (5 * age);
-    bmr = gender === 'M' ? bmr + 5 : bmr - 161;
+    // 1. Fórmula Mifflin-St Jeor para TMB
+    let tmb = (10 * Number(weight)) + (6.25 * Number(height)) - (5 * Number(age));
+    tmb = gender === 'M' ? tmb + 5 : tmb - 161;
 
-    let tdee = bmr * 1.55;
+    // 2. Calorías de Mantenimiento (TMB x Factor de Actividad)
+    const maintenanceCalories = tmb * Number(activity);
 
-    if (goal === 'cut') tdee -= 500; 
-    if (goal === 'bulk') tdee += 500; 
+    // 3. Ajuste por Objetivo
+    let targetCalories = maintenanceCalories;
+    if (goal === 'lose') targetCalories -= 500; // Déficit
+    if (goal === 'gain') targetCalories += 500; // Superávit
 
+    // 4. Reparto de Macros Estándar (Fitness)
+    // Proteína: 2.2g por kg de peso
+    const targetProtein = Math.round(Number(weight) * 2.2);
+    // Grasas: 1g por kg de peso
+    const targetFats = Math.round(Number(weight) * 1);
     
-    const proteinTarget = Math.round(weight * 2.2);
-    const fatsTarget = Math.round((tdee * 0.25) / 9);
-    const remainingKcal = tdee - (proteinTarget * 4) - (fatsTarget * 9);
-    const carbsTarget = Math.round(remainingKcal / 4);
+    // Carbohidratos: El resto de las calorías
+    // (Proteína = 4kcal/g, Grasas = 9kcal/g, Carbos = 4kcal/g)
+    const caloriesFromProteinAndFats = (targetProtein * 4) + (targetFats * 9);
+    const targetCarbs = Math.round((targetCalories - caloriesFromProteinAndFats) / 4);
 
-    const profileData = { weight, height, age, gender, goal };
-    const macroTargets = { protein: proteinTarget, carbs: carbsTarget, fats: fatsTarget };
-    
-    
-    updateProfileAndTargets(profileData, macroTargets);
+    // 5. Inyectamos los nuevos objetivos en el Cerebro Global
+    updateGoals({
+      calories: Math.round(targetCalories),
+      protein: targetProtein,
+      carbs: targetCarbs,
+      fats: targetFats
+    });
 
     setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
   };
 
   return (
-    <div className="p-6 space-y-6 animate-fadeIn">
-      <div>
-        <h1 className="text-3xl font-black text-slate-900 tracking-tighter">PERFIL <span className="text-blue-500">BIO</span></h1>
-        <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Motor metabólico</p>
+    <div className="p-6 space-y-6 min-h-screen bg-slate-50 pb-24">
+      <div className="mt-4">
+        <h1 className="text-2xl font-extrabold text-slate-800">Tu Perfil Físico</h1>
+        <p className="text-sm text-slate-500 font-medium">Calcula tus objetivos calóricos al milímetro</p>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-5">
+      <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 space-y-5">
         
+        {/* Género y Edad */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Género</label>
+            <select name="gender" value={formData.gender} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
+              <option value="M">Hombre</option>
+              <option value="F">Mujer</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Edad</label>
+            <input type="number" name="age" value={formData.age} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
+          </div>
+        </div>
+
+        {/* Peso y Altura */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Peso (kg)</label>
+            <input type="number" name="weight" value={formData.weight} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Altura (cm)</label>
+            <input type="number" name="height" value={formData.height} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400 text-center" />
+          </div>
+        </div>
+
+        {/* Nivel de Actividad */}
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Género Biológico</label>
-          <div className="flex gap-2">
-            <button onClick={() => setGender('M')} className={`flex-1 py-3 rounded-2xl font-bold text-sm transition-all ${gender === 'M' ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/30' : 'bg-slate-50 text-slate-400'}`}>Hombre</button>
-            <button onClick={() => setGender('F')} className={`flex-1 py-3 rounded-2xl font-bold text-sm transition-all ${gender === 'F' ? 'bg-pink-500 text-white shadow-lg shadow-pink-500/30' : 'bg-slate-50 text-slate-400'}`}>Mujer</button>
-          </div>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Actividad Diaria</label>
+          <select name="activity" value={formData.activity} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="1.2">Sedentario (Trabajo de oficina, sin ejercicio)</option>
+            <option value="1.375">Ligero (Ejercicio suave 1-3 días/semana)</option>
+            <option value="1.55">Moderado (Ejercicio moderado 3-5 días/semana)</option>
+            <option value="1.725">Activo (Ejercicio fuerte 6-7 días/semana)</option>
+          </select>
         </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Peso (kg)</label>
-            <input type="number" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Altura (cm)</label>
-            <input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Edad</label>
-            <input type="number" value={age} onChange={(e) => setAge(Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-2 text-center font-bold text-slate-700 focus:ring-2 focus:ring-blue-400 outline-none" />
-          </div>
-        </div>
-
+        {/* Objetivo */}
         <div>
-          <label className="block text-[10px] font-bold text-slate-400 uppercase mb-2">Objetivo Nutricional</label>
-          <div className="flex flex-col gap-2">
-            <button onClick={() => setGoal('cut')} className={`w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all ${goal === 'cut' ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/30' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>🔥 Definición (Perder Grasa)</button>
-            <button onClick={() => setGoal('maintain')} className={`w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all ${goal === 'maintain' ? 'bg-slate-800 text-white shadow-lg shadow-slate-800/30' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>⚖️ Mantenimiento</button>
-            <button onClick={() => setGoal('bulk')} className={`w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-wider transition-all ${goal === 'bulk' ? 'bg-green-500 text-white shadow-lg shadow-green-500/30' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>💪 Volumen (Ganar Masa)</button>
-          </div>
+          <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Tu Meta</label>
+          <select name="goal" value={formData.goal} onChange={handleChange} className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-3 text-sm font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-400">
+            <option value="lose">Perder Grasa (Déficit Calórico)</option>
+            <option value="maintain">Mantener Peso (Normocalórica)</option>
+            <option value="gain">Ganar Masa Muscular (Superávit)</option>
+          </select>
         </div>
 
-        <button 
+        {/* Botón de Guardado */}
+        <button
           onClick={calculateAndSave}
-          className={`w-full mt-4 py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all ${saved ? 'bg-green-500 text-white' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-500/30 active:scale-95'}`}
+          className={`w-full py-4 rounded-2xl font-bold text-white transition-all shadow-md mt-4 active:scale-95 ${
+            saved ? 'bg-green-500' : 'bg-slate-800 hover:bg-slate-900'
+          }`}
         >
-          {saved ? "¡Cálculos Guardados! ✓" : "Generar Plan Inteligente"}
+          {saved ? '✅ OBJETIVOS ACTUALIZADOS' : 'CALCULAR Y GUARDAR PERFIL'}
         </button>
 
       </div>
